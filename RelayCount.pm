@@ -71,26 +71,34 @@ my $config_key = "relay_count";
     }
 
 
-    sub _get_all_public_ips {
+    sub _get_ips {
         my $pms = shift || {};
+        my $include_private_ips = shift || 0;
 
         # Get all the IPs
         my @fullips = map { $_->{ip} } @{$pms->{relays_untrusted}};
 
-        my @fullexternal = map {
+        my @filtered_ips = map {
             (!$_->{internal}) ? ($_->{ip}) : ()
             } @{$pms->{relays_trusted}};
-        push (@fullexternal, @fullips);   # add untrusted set too
+        push (@filtered_ips, @fullips);   # add untrusted set too
 
-        # Strip out private IPs
-        my $IP_PRIVATE = IP_PRIVATE;
-        @fullexternal = grep {
-            $_ !~ /$IP_PRIVATE/
-        } @fullexternal;
+        # Include/Exclude private IPs
+        dbg(
+            ($include_private_ips ? 'In' : 'Ex') .
+            "cluding private IPs as per config"
+        );
 
-        dbg("Pulled following IPs from PMS relays " . join(', ', @fullexternal));
+        unless ($include_private_ips) {
+            my $IP_PRIVATE = IP_PRIVATE;
+            @filtered_ips = grep {
+                $_ !~ /$IP_PRIVATE/
+            } @filtered_ips;
+        }
 
-        return @fullexternal;
+        dbg("Pulled following IPs from PMS relays " . join(', ', @filtered_ips));
+
+        return @filtered_ips;
     }
 
 
@@ -105,7 +113,7 @@ my $config_key = "relay_count";
     sub parse_config {
         my ($self, $opts) = @_;
 
-        foreach my $option_key (qw/ blacklist_less_than_or_equal blacklist_greater_than_or_equal /) {
+        foreach my $option_key (qw/ blacklist_less_than_or_equal blacklist_greater_than_or_equal include_private_ips /) {
             if ($opts->{key} eq $option_key) {
 
                 dbg("Loading " . ($opts->{ user_config } ? "user" : "global" ) . "_config for $option_key");
@@ -113,7 +121,7 @@ my $config_key = "relay_count";
                 my $value = $opts->{ value };
 
                 if ($value !~ /^\d+$/) {
-                    dbg("$option_key value $value invalid - setting to 0 - will not be checked");
+                    dbg("$option_key value $value invalid - setting to 0");
                     $value = 0;
                 }
 
@@ -135,17 +143,19 @@ my $config_key = "relay_count";
 
         my $blacklist_less_than_or_equal =
                 $self->{ main }{ conf }{ $config_key }{ blacklist_less_than_or_equal };
+        my $include_private_ips =
+                $self->{ main }{ conf }{ $config_key }{ include_private_ips };
 
         if ($blacklist_less_than_or_equal == 0) {
                 dbg("blacklist_less_than_or_equal config option is set 0 - check not run");
                 return 0;
         }
 
-        my @public_ips = _get_all_public_ips($pms);
-        dbg("Message touched " . scalar(@public_ips) . " public ips");
+        my @ips = _get_ips($pms, $include_private_ips);
+        dbg("Message touched " . scalar(@ips) . " ips");
 
         return 1
-            if (scalar(@public_ips) <= $blacklist_less_than_or_equal);
+            if (scalar(@ips) <= $blacklist_less_than_or_equal);
 
         return 0;
     }
@@ -156,17 +166,19 @@ my $config_key = "relay_count";
 
         my $blacklist_greater_than_or_equal =
                 $self->{ main }{ conf }{ $config_key }{ blacklist_greater_than_or_equal };
+        my $include_private_ips =
+                $self->{ main }{ conf }{ $config_key }{ include_private_ips };
 
         if ($blacklist_greater_than_or_equal == 0) {
                 dbg("blacklist_greater_than_or_equal config option is set 0 - check not run");
                 return 0;
         }
 
-        my @public_ips = _get_all_public_ips($pms);
-        dbg("Message touched " . scalar(@public_ips) . " public ips");
+        my @ips = _get_ips($pms, $include_private_ips);
+        dbg("Message touched " . scalar(@ips) . " ips");
 
         return 1
-            if (scalar(@public_ips) >= $blacklist_greater_than_or_equal);
+            if (scalar(@ips) >= $blacklist_greater_than_or_equal);
 
         return 0;
     }
@@ -208,7 +220,7 @@ my $config_key = "relay_count";
   Redefine SpamAssassin's dbg function, prepends with country_filter text,
   Makes debugging easier
 
-=item B<_get_all_public_ips( $pms )>
+=item B<_get_ips( $pms )>
 
   Takes the Spamassassin Per-message-status object and pulls
   out all non-private Relay IPs that this message has touched

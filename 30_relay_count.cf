@@ -15,3 +15,4 @@ describe    BLACKLIST_MAXIMUM_RELAY_COUNT Email was relayed through greater than
 
 blacklist_greater_than_or_equal 50
 
+include_private_ips 0

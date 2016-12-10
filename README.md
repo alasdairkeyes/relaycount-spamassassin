@@ -56,7 +56,8 @@ https://github.com/alasdairkeyes/relaycount-spamassassin
 
 ## Changelog
 - 2016-11-05 :: 0.01    :: First release
-- 2016-12-10 :: 0.02    :: Second release - Allow inclusion of internal IPs when checking relays
+- 2016-12-10 :: 0.02    :: Not used
+- 2016-12-10 :: 0.03    :: Allow inclusion of internal IPs when checking relays
 
 
 ## Author
